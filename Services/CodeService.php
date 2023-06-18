@@ -1,10 +1,11 @@
 <?php
+use Models\Entity\Cupone;
 
 class CodeService{
 
     public static function getInvitationalCode(int $codeNumber, int $userId)
     {
-        $verification = (new self()->verify($codeNumber, $userId));
+        $verification = (new self())->verify($codeNumber, $userId);
     }
 
 
@@ -12,12 +13,12 @@ class CodeService{
      * @param int $codeNumber
      * @param int $userId
      */
-    private verify(int $codeNumber, int $userId)
+    private function verify(int $codeNumber, int $userId)
     {
 
     }
 
-    public static redeemCode(Cupone $cupon, int $userId)
+    public static function redeemCode(Cupone $cupon, int $userId)
     {
         /**
          * if user is `disertante` or `invitado` or if the `Cupon` 
@@ -26,7 +27,7 @@ class CodeService{
          */
 
          /**  we can do a try catch here with custom exceptions... */
-         $verification = (new self()->verify($cupon->numero, $userId));
+         $verification = (new self())->verify($cupon->numero, $userId);
 
          if ($verification){
 

@@ -7,10 +7,14 @@ class CongresoService{
 
     }
 
+    /**
+     * must return a CongresoInscripcion entity...
+     */
     private function prepareToSave()
     {
 
     }
+
 
     
 }
