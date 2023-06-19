@@ -15,7 +15,7 @@ class PayService{
      * @param string $from 
      * @param float $total ->default 0
      */
-    public static function saveNewPay(int $userId, int $planId, string $from, float $total = 0)
+    public static function saveNewPay(int $userId, int $planId, string $from, float $total = 0, string $state)
     {
         try {
             $newPay = self::$table->newEntity();
@@ -23,7 +23,7 @@ class PayService{
             $newPay->usuario_id = $userId;
             $newPay->plan_id = $planId;
             $newPay->monto = $total;
-            $newPay->estado = 'aprobado';
+            $newPay->estado = $state;
             $newPay->origen = $from;
     
             return self::$table->save($newPay);        
