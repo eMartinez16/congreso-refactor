@@ -5,7 +5,11 @@ use Services\CongresoService;
 
 class EventosController extends AppController{
     
-    public function inscripcion(string $slug)
+    /**
+     * register a new inscription or return certain view
+     * @param string $slug
+     */
+    public function inscription(string $slug)
     {
         //El slug se crea a partir del nombre del congreso
         $evento = $this->Eventos->findBySlug($slug)->contain(['Etiquetas', 'Planes'])->first();
@@ -24,8 +28,15 @@ class EventosController extends AppController{
                 $response = CongresoService::register($evento, $userId, $this->request->getData());
 
                 if ($response['errors']) {
+
                     $this->Flash->error(__($response['errors']['message']));
                     return $this->redirect($response['errors']['redirect']);
+                }
+                
+                if ($response['success']){
+                    
+                    $this->Flash->success(__($response['success']['message']));
+                    return $this->redirect($response['success']['redirect']);
                 }
             }
         }

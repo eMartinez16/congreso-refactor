@@ -1,4 +1,5 @@
 <?php
+use App\Model\Enum\PaymentFromEnum;
 use App\Model\Enum\PayStatesEnum;
 use App\Model\Enum\TagsByYearEnum;
 use Models\Entity\Cupone;
@@ -189,7 +190,7 @@ class CodeService{
                     ];
                 }
     
-                $exchange = PayService::saveNewPay($userId, $cupon->plan_id, PayStatesEnum::CUPONE, 0);
+                $exchange = PayService::saveNewPay($userId, $cupon->plan_id, PaymentFromEnum::CUPON, 0);
     
                 if (!$exchange) {
     

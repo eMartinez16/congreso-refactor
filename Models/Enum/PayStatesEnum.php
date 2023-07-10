@@ -3,7 +3,9 @@
 namespace App\Model\Enum;
 
 class PayStatesEnum{
-    const CUPONE = 'canje_cupon';
+    const APPROVED = 'aprobado';
 
-    const SOCIO = 'socio';
+    const REJECTED = 'rechazado';
+
+    const PENDING = 'pendiente';
 }

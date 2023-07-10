@@ -1,6 +1,9 @@
 <?php
 
 namespace Services;
+use App\Model\Enum\PaymentFromEnum;
+use App\Model\Enum\PayStatesEnum;
+use App\Model\Enum\PlanesEnum;
 use Models\Entity\CongresoInscripcione;
 use Models\Entity\Evento;
 use Models\Entity\EventosUsuario;
@@ -10,18 +13,40 @@ class CongresoService{
     private $congresoTable;
     private $eventUserTable;
 
+    private $notifications;
+    private $movTable;
+
     public function __construct()
     {
         $this->congresoTable = TableRegistry::getTableLocator()->get('CongresoInscripciones');
         $this->eventUserTable = TableRegistry::getTableLocator()->get('EventosUsuarios');
+        $this->notifications = TableRegistry::getTableLocator()->get('Notificaciones');
+        $this->movTable = TableRegistry::getTableLocator()->get('movimientos_charlas');
     }
 
-    public static function register(Evento $event, int $userId, array $formData, bool $isSocio = false)
+    public static function register(Evento $event, int $userId, array $formData, bool $isSocio = false, bool $fromCode = false)
     {
-        $eventosTable = TableRegistry::getTableLocator()->get('Eventos');
+        $eventsTable = TableRegistry::getTableLocator()->get('Eventos');
         $usersTable = TableRegistry::getTableLocator()->get('Usuarios');
 
         $user = $usersTable->find();
+        /**
+         * this can be: `Presencial`, `Virtual Full` or `Virtual Basic`
+         * @var null|PlanesEnum $typeTicket
+         */
+        $typeTicket = null;
+
+        /**
+         * @var null|PaymentFromEnum
+         */
+        $from = null;
+
+        /**
+         * @var null|PayStatesEnum
+         */
+        $status = null;
+
+        $total = 0;
 
         /** if is a `socio`, we check if has debit  */
         if ($isSocio){
@@ -44,6 +69,9 @@ class CongresoService{
                 ];
             }
 
+            $typeTicket = PlanesEnum::PRESENCIAL;
+            $from = PaymentFromEnum::SOCIO;
+            $status = PayStatesEnum::APPROVED;
         }else{
             $user = $user->where([
                 'email' => $formData['email']
@@ -53,10 +81,10 @@ class CongresoService{
         }
 
         // Verificando TOPE
-        if (!empty($evento->tope_inscriptos)) {
-            $totalRegistered = $eventosTable->getInscriptos($evento->id)->count();
+        if (!empty($event->tope_inscriptos)) {
+            $totalRegistered = $eventsTable->getInscriptos($event->id)->count();
 
-            if ($evento->tope_inscriptos <= $totalRegistered) {
+            if ($event->tope_inscriptos <= $totalRegistered) {
 
                 return  [
                     'errors' => [
@@ -67,7 +95,29 @@ class CongresoService{
             }
         }
 
-        $inscription = CongresoService::prepareToSave();
+        $inscription = self::prepareToSave();
+
+        if ($fromCode) {
+            /** the code has the `plan_id` field, so in order to do this, we need to pass it when call this fn */
+            $typeTicket = $formData['planId'] ?: PlanesEnum::PRESENCIAL;        
+            $from = PaymentFromEnum::CUPON;
+            $status = PayStatesEnum::APPROVED;
+        }
+
+        /** we need to send the inscriptionType or if is from code or socio, we get the type there 
+         * @var int $planId
+        */
+        $planId = $typeTicket ?: $formData['inscriptionType'];
+
+        /** @todo implement MP and PayPal logic here */
+
+        $pay = PayService::saveNewPay(
+                $userId, 
+                $planId,
+                $from,
+                $total,
+                $status
+                );
 
         if (!QrService::generateQr($inscription['inscription']->nro_inscripcion)){
 
@@ -79,21 +129,7 @@ class CongresoService{
             ];
         }
         
-        
-        /** generate `pago` */
-
-        /** IE = Inscripcion Evento */
-        $notification = [
-            'usuario_id' => $user->id,
-            'remitente_id' => $user->id,
-            'mensaje' => "Te inscribiste al evento " . $event->titulo . '.',
-            'link' => Router::url(['controller' => 'Eventos', 'action' => 'ver', $event->slug], true),
-            'motivo' => 'IE'
-        ];
-
-        $notifications = TableRegistry::getTableLocator()->get('Notificaciones');
-        $notificacion = $notifications->newEntity([$notification]);
-        $notifications->save($notificacion);
+    
 
         return [
             'success' => [
@@ -133,6 +169,34 @@ class CongresoService{
             $inscriptionEntity->save();
             $eventUserEntity->save();
 
+            $currentEvent = $this->eventUserTable->get($inscriptionEntity->evento_id);
+
+             /** IE = Inscripcion Evento */
+            $notification = [
+                'usuario_id' => $inscriptionEntity->usuario_id,
+                'remitente_id' => $inscriptionEntity->usuario_id,
+                'mensaje' => "Te inscribiste al evento " . $currentEvent->titulo . '.',
+                'link' => Router::url(['controller' => 'Eventos', 'action' => 'ver', $currentEvent->slug], true),
+                'motivo' => 'IE'
+            ];
+
+            /** check this.. */
+            $notificacion = $this->notifications->newEntity([$notification]);
+            $this->notifications->save($notificacion);
+
+
+            $movement = $this->movTable->newEntity();
+            $newMovement = [ 'evento_id' => $inscriptionEntity->evento_id,
+                'usuario_id' => $inscriptionEntity->usuario_id,
+                'entidad_id' => $inscriptionEntity->id,
+                'tabla' => 'CongresoInscripciones',
+                'alta' => 0,
+                'descripcion' => 'Inscr a evento'
+            ];
+
+            $movement = $this->movTable->patchEntity($movement, $newMovement);
+
+            $this->movTable->save($movement);
         } catch (\Throwable $th) {
             throw $th;
         }
